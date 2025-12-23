@@ -1,0 +1,18 @@
+[project]
+name = "localcode"
+version = "0.1.0"
+description = "OpenCode middleware server for GLM 4.7 API"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+
+[project.urls]
+Homepage = "https://opencode.ai"
+Repository = "https://github.com/sst/opencode"
+
+[project.scripts]
+localcode = "main:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
