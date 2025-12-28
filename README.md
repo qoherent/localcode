@@ -1,67 +1,84 @@
 # LocalCode Middleware Server
 
-A Python middleware server that sits between OpenCode and GLM 4.7, logging all requests and responses.
+A modular Python middleware server that sits between OpenCode and OpenAI-compatible backends (zen, llama.cpp, etc.), with structured logging and extensible architecture.
 
 ## Features
 
-- **OpenAI-Compatible API**: `/v1/chat/completions` endpoint
-- **Request Logging**: Pretty prints all incoming requests
-- **Response Logging**: Pretty prints all outgoing responses
-- **Streaming Support**: Native Python async generators
-- **Tool Call Markers**: Detects and marks tool requests in logs
-- **Functional Design**: No OOP, pure functions
+- **Modular Architecture**: Separated into functional modules (config, client, logger, processor, server)
+- **Backend Agnostic**: Works with any OpenAI-compatible API (zen, llama.cpp, etc.)
+- **Structured Logging**: Clean, labeled event logging for debugging and analysis
+- **Reasoning Content Support**: Detects and marks reasoning content from GLM 4.7
+- **Tool Call Detection**: Identifies and logs tool requests and responses
+- **Streaming Support**: Native Python async generators for SSE streaming
+- **Configuration via .env**: Simple environment variable configuration
+- **Functional Design**: Pure functions, no OOP, easy to test
 
 ## Installation
 
 ```bash
-cd LocalCode
-pip install -r requirements.txt
+cd localcode
+poetry install
 ```
+
+## Configuration
+
+The middleware reads configuration from a `.env` file in the project root.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `4242` | Server listening port |
+| `BACKEND_URL` | `https://opencode.ai/zen/v1` | Backend API URL |
+| `LOG_LEVEL` | `INFO` | Logging verbosity (DEBUG, INFO, WARN, ERROR) |
+
+### Setting Up Configuration
+
+1. Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` to configure your backend:
+   
+   **For cloud (zen):**
+   ```bash
+   PORT=4242
+   BACKEND_URL=https://opencode.ai/zen/v1
+   LOG_LEVEL=INFO
+   ```
+   
+   **For local (llama.cpp):**
+   ```bash
+   PORT=4242
+   BACKEND_URL=http://localhost:8080/v1
+   LOG_LEVEL=INFO
+   ```
+
+3. Start the server:
+   ```bash
+   poetry run python main.py
+   ```
+
+### Switching Backends
+
+To switch from cloud to local (or vice versa), simply edit `BACKEND_URL` in `.env` and restart the server.
 
 ## Running
 
 ```bash
-python main.py
-```
+# Start with default configuration
+poetry run python main.py
 
-Server starts on `http://0.0.0.0:4242`
+# Server will auto-detect free model for zen backend
+# and print startup banner like:
 
-## OpenCode Configuration
-
-Add to OpenCode provider configuration:
-
-```typescript
-{
-  "localcode": {
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "http://localhost:4242/v1",
-    "name": "LocalCode",
-    "models": {
-      "glm-4.7": {
-        "id": "glm-4.7",
-        "name": "GLM-4.7 (via LocalCode)",
-        "family": "glm-4.7",
-        "reasoning": true,
-        "tool_call": true,
-        "temperature": true,
-        "cost": {
-          "input": 0,
-          "output": 0
-        },
-        "limit": {
-          "context": 204800,
-          "output": 131072
-        }
-      }
-    }
-  }
-}
-```
-
-Or configure via environment:
-
-```bash
-export OPENCODE_PROVIDER_URL="http://localhost:4242/v1"
+################################################################################
+# LocalCode Middleware Server
+# Listening on http://0.0.0.0:4242
+# Backend: https://opencode.ai/zen/v1
+# Selected Model: glm-4.7-free (auto-detected)
+################################################################################
 ```
 
 ## API Endpoints
@@ -74,15 +91,44 @@ OpenAI-compatible chat completions endpoint.
 
 ```json
 {
-  "model": "glm-4.7",
-  "messages": [{ "role": "user", "content": "Hello" }],
+  "model": "glm-4.7-free",
+  "messages": [
+    {"role": "user", "content": "Hello"}
+  ],
   "stream": false,
   "temperature": 0.8,
   "max_tokens": 2000
 }
 ```
 
-**Response Format:**
+**With Tools:**
+
+```json
+{
+  "model": "glm-4.7-free",
+  "messages": [
+    {"role": "user", "content": "Edit file"}
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "edit",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "filePath": {"type": "string"},
+            "oldString": {"type": "string"},
+            "newString": {"type": "string"}
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+**Response Format (Non-Streaming):**
 
 ```json
 {
@@ -108,29 +154,32 @@ OpenAI-compatible chat completions endpoint.
 }
 ```
 
-**Tool Call Example:**
+**With Reasoning (GLM 4.7):**
 
 ```json
 {
-  "model": "glm-4.7",
-  "messages": [{ "role": "user", "content": "Edit file" }],
-  "tools": [
+  "choices": [
     {
-      "type": "function",
-      "function": {
-        "name": "edit",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "filePath": { "type": "string" },
-            "oldString": { "type": "string" },
-            "newString": { "type": "string" }
-          }
-        }
-      }
+      "message": {
+        "content": "4",
+        "reasoning_content": "1+1=2, so 2+2=4"
+      },
+      "finish_reason": "stop"
     }
   ]
 }
+```
+
+**Streaming Response:**
+
+Standard SSE (Server-Sent Events) format:
+
+```
+data: {"choices":[{"delta":{"content":"Hello"}}]}
+
+data: {"choices":[{"delta":{"content":" world!"}}]}
+
+data: [DONE]
 ```
 
 ### GET /health
@@ -142,27 +191,26 @@ Health check endpoint.
 ```json
 {
   "status": "ok",
-  "provider": "LocalCode",
-  "model": "GLM-4.7"
+  "provider": "LocalCode Middleware",
+  "backend_url": "https://opencode.ai/zen/v1"
 }
 ```
 
 ## Log Output
 
-The middleware prints detailed logs to console:
+The middleware prints structured logs to console:
 
 ### Request Log
 
 ```
 ================================================================================
-[REQUEST] 14:32:15
-Model: glm-4.7
-Stream: false
-Messages count: 2
-  [0] system: You are a coding agent...
-  [1] user: Edit the function...
-[Tool Definitions] 3 tools
+[REQUEST] 12:34:56
+Model: glm-4.7-free
+Stream: False
+Messages count: 1
+[Tool Definitions] 2 tools
   [0] edit: Edits a file...
+  [1] read: Reads file...
 ================================================================================
 ```
 
@@ -170,54 +218,71 @@ Messages count: 2
 
 ```
 --------------------------------------------------------------------------------
-[RESPONSE] 14:32:20
-Content: Sure, I'll help you edit the function...
+[RESPONSE] 12:34:58
+Content: I'll help you edit the function...
 Finish reason: stop
 Usage - prompt: 150, completion: 45, total: 195
+[Cached Tokens: 12]
 --------------------------------------------------------------------------------
 ```
 
-### Tool Call Markers
+### Tool Call Log
 
 ```
-[Tool Request] Detected tools in request
 [Tool Call] edit
 Args: {"filePath": "/src/app.ts", "oldString": "...", "newString": "..."}
 ```
 
-### Stream Chunks
+### Reasoning Log
 
 ```
-[STREAM CHUNK] 14:32:18 Sure
-[STREAM CHUNK] 14:32:18 , I'll
-[STREAM CHUNK] 14:32:18  help
+[STREAM CHUNK] 12:34:57 [REASONING] The user asked for 2+2...
+[STREAM CHUNK] 12:34:58 [REASONING] 2+2 = 4...
+[STREAM CHUNK] 12:34:59 4
 ```
 
-## Configuration
+### Stream Chunk Log
 
-Constants in `main.py`:
-
-```python
-GLM_API_URL = "https://api.z.ai/api/coding/paas/v4"
-PORT = 4242
-API_KEY = "dummy"  # GLM 4.7 is free
+```
+[STREAM CHUNK] 12:34:58 Hello
+[STREAM CHUNK] 12:34:58  world!
 ```
 
 ## Development
 
-### Running with custom port:
-
-```python
-# Edit main.py
-PORT = 8080
-```
-
-### Verbose logging:
-
-Logs are always printed to stdout. Redirect to file:
+### Running Tests
 
 ```bash
-python main.py 2>&1 | tee middleware.log
+# Run all tests
+poetry run python config.test.py -v
+poetry run python logger.test.py -v
+poetry run python processor.test.py -v
+poetry run python client.test.py -v
+poetry run python server.test.py -v
+```
+
+### Project Structure
+
+```
+localcode/
+├── .env.example          # Configuration template
+├── .env                 # Your configuration (created by you)
+├── config.py             # Configuration loading
+├── config.test.py         # Configuration tests
+├── logger.py             # Structured event logging
+├── logger.test.py         # Logger tests
+├── client.py             # OpenAI-compatible HTTP client
+├── client.test.py         # Client tests
+├── processor.py           # Request/response processing
+├── processor.test.py       # Processor tests
+├── server.py             # FastAPI application
+├── server.test.py         # Server tests
+├── main.py               # Entry point
+├── README.md             # This file
+├── pyproject.toml        # Poetry dependencies
+├── llama.cpp.md          # llama.cpp integration guide
+├── ARCHITECTURE.md       # Architecture documentation
+└── middleware.md         # Middleware research
 ```
 
 ## Troubleshooting
@@ -225,15 +290,25 @@ python main.py 2>&1 | tee middleware.log
 ### Port already in use:
 
 ```bash
+# Find and kill process using port 4242
 lsof -ti:4242 | xargs kill -9
 ```
 
-### Import errors:
+### Dependencies not found:
 
 ```bash
-pip install --upgrade pip
-pip install -r requirements.txt
+poetry install
 ```
+
+### Backend connection errors:
+
+1. Check `BACKEND_URL` in `.env`
+2. For zen: Ensure you have internet access
+3. For llama.cpp: Ensure llama-server is running on the specified URL
+
+## Architecture
+
+See `ARCHITECTURE.md` for detailed design documentation and future roadmap.
 
 ## License
 
