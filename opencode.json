@@ -1,0 +1,28 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "localcode": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "localcode",
+      "options": {
+        "baseURL": "http://127.0.0.1:4242/v1"
+      },
+      "models": {
+        "glm-4.7-free": {
+          "name": "GLM-4.7 Free",
+          "limit": {
+            "context": 204800,
+            "output": 131072
+          }
+        },
+        "big-pickle": {
+          "name": "Big Pickle",
+          "limit": {
+            "context": 200000,
+            "output": 128000
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,64 +1,81 @@
-"""LocalCode Middleware Server - Entry point."""
+import argparse
+import os
+import signal
+import sys
 
-import asyncio
-import client
-from config import load_config, is_zen_backend
-from logger import log_event
-from server import create_app
-from processor import (
-    extract_request_info,
-    categorize_delta,
-    extract_message_parts,
-    extract_usage_stats,
-    get_finish_reason,
-)
 import uvicorn
 
+import logging_callbacks  # noqa: F401 - Registers callbacks on import
 
-def print_banner(config: dict, selected_model: str | None):
-    """Print startup banner."""
-    print("\n" + "#" * 80)
-    print("# LocalCode Middleware Server")
-    print(f"# Listening on http://0.0.0.0:{config['port']}")
-    print(f"# Backend: {config['backend_url']}")
-    if selected_model:
-        print(f"# Selected Model: {selected_model} (auto-detected)")
-    print("#" * 80 + "\n")
+from litellm.proxy.proxy_cli import run_server
+
+
+def getenv(key: str, default: str) -> str:
+    """Get environment variable or default."""
+    return os.getenv(key, default)
 
 
 def main():
     """Main entry point."""
-    config = load_config()
-
-    backend_url = config["backend_url"]
-
-    selected_model = None
-    if is_zen_backend(backend_url):
-        selected_model = asyncio.run(client.select_free_model(backend_url))
-
-    print_banner(config, selected_model)
-
-    processor = {
-        "extract_request_info": extract_request_info,
-        "categorize_delta": categorize_delta,
-        "extract_message_parts": extract_message_parts,
-        "extract_usage_stats": extract_usage_stats,
-        "get_finish_reason": get_finish_reason,
-    }
-
-    app = create_app(
-        backend_url=backend_url,
-        log_event=log_event,
-        post_chat_completions=client.post_chat_completions,
-        processor=processor,
+    parser = argparse.ArgumentParser(
+        description="LocalCode Middleware Server (powered by LiteLLM)"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=getenv("LITELLM_CONFIG", "config.yaml"),
+        help="Path to LiteLLM config file (default: config.yaml)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(getenv("LITELLM_PORT", "4242")),
+        help="Server port (default: 4242)",
+    )
+    parser.add_argument(
+        "--host",
+        type=str,
+        default=getenv("LITELLM_HOST", "0.0.0.0"),
+        help="Server host (default: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--loglevel",
+        type=str,
+        default=getenv("LITELLM_LOGLEVEL", "INFO"),
+        help="Logging level (default: INFO)",
     )
 
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=config["port"],
-        log_level=config["log_level"].lower(),
-    )
+    args = parser.parse_args()
+
+    config_path = args.config
+    port = args.port
+    host = args.host
+
+    print("\n" + "#" * 80)
+    print("# LocalCode Middleware Server")
+    print(f"# Powered by LiteLLM")
+    print(f"# Config: {config_path}")
+    print(f"# Listening on http://{host}:{port}")
+    print("#" * 80 + "\n")
+
+    def signal_handler(signum, frame):
+        print("\n\nShutting down gracefully...")
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    sys.argv = [
+        "litellm",
+        "--config",
+        config_path,
+        "--port",
+        str(port),
+        "--host",
+        host,
+    ]
+
+    run_server()
 
 
 if __name__ == "__main__":

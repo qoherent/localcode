@@ -1,0 +1,65 @@
+# LocalCode LiteLLM Configuration
+# Routes requests from OpenCode to OpenCode Zen (free GLM 4.7) or local llama.cpp
+#
+# Usage: litellm --config config.yaml
+# Or: python main.py
+
+model_list:
+  # Free GLM 4.7 via OpenCode Zen
+  # Model name format: openai/model-id (for OpenAI-compatible endpoints)
+  - model_name: glm-4.7-free
+    litellm_params:
+      model: openai/glm-4.7-free
+      api_base: https://opencode.ai/zen/v1
+      api_key: "public"  # Free tier - no key needed
+      max_retries: 3
+      retry_after: 10  # Wait 10s on 429 before retry
+      timeout: 300.0
+
+  # Additional free models available on Zen
+  - model_name: big-pickle
+    litellm_params:
+      model: openai/big-pickle
+      api_base: https://opencode.ai/zen/v1
+      api_key: "public"
+      max_retries: 3
+      retry_after: 10
+
+  - model_name: grok-code
+    litellm_params:
+      model: openai/grok-code
+      api_base: https://opencode.ai/zen/v1
+      api_key: "public"
+      max_retries: 3
+      retry_after: 10
+
+  - model_name: alpha-gd4
+    litellm_params:
+      model: openai/alpha-gd4
+      api_base: https://opencode.ai/zen/v1
+      api_key: "public"
+      max_retries: 3
+      retry_after: 10
+
+  # Local llama.cpp (uncomment to enable)
+  # - model_name: qwen3-coder:a3b
+  #   litellm_params:
+  #     model: ollama/qwen3-coder:a3b
+  #     api_base: http://localhost:8080/v1
+  #     api_key: "no-key-required"
+  #     max_retries: 0  # Local - no retries needed
+
+litellm_settings:
+  # Global retry settings
+  default_max_retries: 3
+  default_retry_after: 10
+
+  # Set to true for verbose debugging
+  # set_verbose: false
+
+general_settings:
+  # Disable master key requirement for open endpoints
+  # master_key: null
+
+  # Allow non-key access (for free models)
+  allow_auth_on_null_key: true

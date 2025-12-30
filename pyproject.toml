@@ -2,19 +2,17 @@
 package-mode = false
 
 [tool.poetry.dependencies]
-python = ">=3.10"
-fastapi = "*"
-httpx = "*"
-uvicorn = {extras = ["standard"], version = "*"}
-python-dotenv = "*"
+python = ">=3.10,<3.14"
+litellm = {version = "^1.80.0", extras = ["proxy"]}
+pyyaml = "^6.0.0"
 
 [project]
 name = "localcode"
-version = "0.1.0"
-description = "OpenCode middleware server for GLM 4.7 API"
+version = "0.2.0"
+description = "OpenCode middleware server powered by LiteLLM"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.14"
 
 [project.urls]
 Homepage = "https://opencode.ai"
